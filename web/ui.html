@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>PromptSmith · 静态骨架 v2</title>
+<style>
+:root{
+  --bg:#15171c; --panel:#1c1f26; --panel2:#23272f; --line:#2f353f;
+  --txt:#e6e9ef; --dim:#8d95a3; --acc:#5b9dff; --acc2:#3b82f6;
+  --ok:#39c07a; --warn:#e0a83a; --bad:#e5645e; --shadow:0 8px 28px rgba(0,0,0,.45);
+  --r:10px;
+}
+html[data-theme="light"]{
+  --bg:#f4f6fa; --panel:#fff; --panel2:#eef1f6; --line:#d7dde7;
+  --txt:#1b1f27; --dim:#68707f; --acc:#2f6fed; --acc2:#1d5fd6;
+  --ok:#1f9d63; --warn:#b8791a; --bad:#c9433d; --shadow:0 8px 24px rgba(20,30,50,.12);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--txt);display:flex;flex-direction:column;
+  font:14px/1.55 "Microsoft YaHei","Segoe UI",system-ui,sans-serif;overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 12px;
+  cursor:pointer;transition:.15s;white-space:nowrap}
+button:hover{border-color:var(--acc);color:var(--acc)}
+button.primary{background:var(--acc2);border-color:var(--acc2);color:#fff;font-weight:600}
+button.primary:hover{filter:brightness(1.1);color:#fff}
+button.ghost{background:transparent}
+select,input[type=text],textarea{background:var(--panel2);border:1px solid var(--line);
+  border-radius:8px;padding:7px 10px;outline:none}
+select:focus,input:focus,textarea:focus{border-color:var(--acc)}
+.spacer{flex:1}
+.mini{font-size:12px;color:var(--dim)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:5px}
+
+/* 顶栏 */
+.top{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;
+  background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{font-weight:700;letter-spacing:.5px}
+.brand span{color:var(--acc)}
+
+/* 主体：左 已选块 | 右 输入+输出 */
+.main{flex:1;display:grid;grid-template-columns:268px 1fr;min-height:0}
+.leftbar{display:flex;flex-direction:column;background:var(--panel);border-right:1px solid var(--line);min-height:0}
+.panelhead{flex:none;display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:12px;
+  color:var(--dim);letter-spacing:.6px;border-bottom:1px solid var(--line)}
+.rightpane{display:flex;flex-direction:column;min-height:0;min-width:0}
+
+/* 已选块 */
+.pipe{flex:1;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:7px;min-height:0}
+.pipe.over{background:rgba(91,157,255,.07);outline:2px dashed var(--acc);outline-offset:-6px}
+.pchip{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:9px;padding:8px 9px;cursor:grab;font-size:12.5px}
+.pchip:hover{border-color:var(--acc)}
+.pchip .idx{width:20px;height:20px;border-radius:50%;background:var(--panel);border:1px solid var(--line);
+  display:grid;place-items:center;font-size:10.5px;color:var(--dim);flex:none}
+.pchip .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pchip .bytes{font-size:10.5px;color:var(--dim);flex:none}
+.pchip .act{display:flex;gap:3px;flex:none}
+.pchip .act button{padding:1px 6px;font-size:11px;border-radius:6px}
+.pchip.lock{background:linear-gradient(90deg,rgba(91,157,255,.12),transparent)}
+.empty{color:var(--dim);text-align:center;padding:24px 12px;border:1px dashed var(--line);
+  border-radius:var(--r);font-size:12.5px;line-height:1.8}
+.pipefoot{flex:none;padding:10px 12px;border-top:1px solid var(--line)}
+.bar{height:7px;background:var(--panel2);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--acc2),var(--acc));transition:.2s}
+.bartx{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-top:6px}
+
+/* 输入区 */
+.zone{display:flex;flex-direction:column;min-height:0}
+.zone.inputzone{flex:none;height:230px}
+.zone.outzone{flex:1}
+.zonebody{flex:1;min-height:0;display:flex;flex-direction:column;padding:10px 12px;gap:8px;overflow:hidden}
+#inp{flex:1;resize:none;min-height:60px;font-size:14px;line-height:1.6}
+
+/* 可拖分隔条 */
+.splitter{flex:none;height:9px;cursor:row-resize;background:var(--panel);border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);position:relative}
+.splitter::after{content:"";position:absolute;left:50%;top:3px;transform:translateX(-50%);
+  width:46px;height:3px;border-radius:99px;background:var(--line)}
+.splitter:hover::after{background:var(--acc)}
+
+/* 输出 */
+.tabs{flex:none;display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line);align-items:center}
+.tab{padding:5px 13px;border-radius:99px;font-size:12.5px;cursor:pointer;border:1px solid transparent;color:var(--dim)}
+.tab.on{background:var(--panel2);border-color:var(--line);color:var(--txt)}
+.outscroll{flex:1;overflow:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.outbox{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r);padding:12px;
+  font:13px/1.85 ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-word;
+  resize:vertical;overflow:auto;min-height:120px}
+.outbox .f{color:var(--acc);font-weight:600}
+.outbox .bad{color:var(--bad);text-decoration:underline wavy var(--bad)}
+.outbar{flex:none;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.statusline{flex:none;display:flex;gap:10px;align-items:center;padding:6px 12px 0;font-size:12px;color:var(--dim)}
+
+/* 底部操作条 */
+.footbar{flex:none;display:flex;gap:10px;align-items:center;padding:10px 14px;
+  background:var(--panel);border-top:1px solid var(--line)}
+
+/* 块库全屏选择器 */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.32);display:none;z-index:40}
+.overlay.show{display:block}
+.sheet{position:absolute;right:0;top:0;height:100%;width:min(680px,58vw);background:var(--panel);
+  border-left:1px solid var(--line);box-shadow:-14px 0 36px rgba(0,0,0,.38);
+  display:flex;flex-direction:column;transform:translateX(100%);transition:transform .22s ease}
+.overlay.show .sheet{transform:translateX(0)}
+.pickstrip{flex:none;display:flex;flex-wrap:wrap;gap:6px;padding:8px 14px;border-bottom:1px solid var(--line);
+  max-height:104px;overflow:auto}
+.sheethead{flex:none;display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.sheethead input{width:320px}
+.sheetbody{flex:1;overflow:auto;padding:8px 14px;min-height:0}
+.bpicked{overflow:auto;padding:10px 14px;display:flex;flex-direction:column;gap:6px}
+.group{border-bottom:1px solid var(--line)}
+.gtitle{display:flex;align-items:center;gap:8px;padding:8px 4px;cursor:pointer;font-size:13px;color:var(--dim);user-select:none}
+.gtitle:hover{color:var(--txt)}
+.gtitle .arrow{font-size:10px;transition:.15s}
+.group.open .arrow{transform:rotate(90deg)}
+.gitems{display:none;flex-direction:column;gap:6px;padding:0 0 10px}
+.group.open .gitems{display:flex}
+.bitem{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:9px;padding:8px 11px;cursor:pointer;font-size:13px}
+.bitem:hover{border-color:var(--acc)}
+.bitem.on{border-color:var(--acc);background:rgba(91,157,255,.10)}
+.bitem .ck{width:16px;height:16px;border-radius:4px;border:1px solid var(--line);
+  display:grid;place-items:center;font-size:11px;flex:none}
+.bitem.on .ck{background:var(--acc2);border-color:var(--acc2);color:#fff}
+.bitem .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bitem .mt{font-size:11px;color:var(--dim);flex:none}
+.sheetfoot{flex:none;display:flex;gap:10px;align-items:center;padding:12px 16px;border-top:1px solid var(--line)}
+.pickeditem{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:8px;padding:6px 9px;font-size:12.5px}
+.pickeditem .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.usedbar{flex:none;display:flex;flex-wrap:wrap;gap:6px;padding:6px 12px 9px;border-top:1px solid var(--line)}
+.ub{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:99px;padding:2px 10px;font-size:11.5px;color:var(--dim);max-width:100%}
+.ub b{color:var(--txt);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+.ub i{font-style:normal;color:var(--acc);font-size:10.5px}
+.ub.manual{border-color:var(--acc)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(16px);opacity:0;
+  background:var(--panel2);border:1px solid var(--acc);padding:8px 16px;border-radius:99px;
+  font-size:13px;transition:.25s;pointer-events:none;z-index:60}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+previewbody{display:block}
+.pvbox{display:none;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;
+  font:11.5px/1.6 ui-monospace,Consolas,monospace;max-height:90px;overflow:auto;white-space:pre-wrap}
+.pvbox.show{display:block}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="brand">Prompt<span>Smith</span></div>
+  <select id="ruleset"><option>菜鸡 · Anima（anima-smith）</option>
+    <option>ANIMA3 模板（anima3-prompt）</option><option>H3 · MiniMax 视频（h3-minimax）</option></select>
+  <select id="model"><option>本地模型 · my-model</option><option>+ 添加模型…</option></select>
+  <span class="mini"><span class="dot"></span>127.0.0.1:8765</span>
+  <div class="spacer"></div>
+  <span class="mini" id="budgetTop">预算 0%</span>
+  <select id="entryMode" title="入口正文模式" style="font-size:12px;padding:4px 8px">
+    <option value="full">全量入口</option>
+    <option value="slim">精简入口</option>
+    <option value="core">核心入口</option>
+  </select>
+  <button id="favBtn" title="收藏夹">⭐</button>
+  <button id="themeBtn" title="切换深浅色">🌙</button>
+  <button id="setBtn" title="设置">⚙</button>
+</div>
+
+<div class="main">
+  <!-- 左：已选块 -->
+  <div class="leftbar">
+    <div class="panelhead">
+      已选块 <span id="cnt" class="mini">0</span>
+      <div class="spacer"></div>
+      <button class="ghost" id="openPicker" style="padding:2px 9px;font-size:12px">＋ 添加</button>
+      <button class="ghost" id="clearSel" style="padding:2px 9px;font-size:12px">清空</button>
+    </div>
+    <div class="pipe" id="pipe">
+      <div class="empty" id="pipeEmpty">还没有选块<br>点右上角「＋ 添加」打开块库<br><span style="font-size:11px">也可以把卡片拖进来排序</span></div>
+    </div>
+    <div class="pipefoot">
+      <div class="bar"><i id="barFill"></i></div>
+      <div class="bartx"><span id="cum">0 块 · 0 字</span><span id="pct">0%</span></div>
+    </div>
+  </div>
+
+  <!-- 右：输入 / 输出 -->
+  <div class="rightpane">
+    <div class="zone inputzone" id="inputZone">
+      <div class="panelhead">
+        输入 <span class="mini" id="modeTip">生成前预览：开</span>
+        <div class="spacer"></div>
+        <label class="mini"><input type="checkbox" id="batch"> 批量（一行一条）</label>
+        <label class="mini"><input type="checkbox" id="expand"> 智能改写</label>
+      </div>
+      <div class="zonebody">
+        <textarea id="inp" placeholder="描述场景，例如：雨夜小巷，女生撑着透明伞回头看我，逆光&#10;（Ctrl+Enter 生成 · Ctrl+S 存草稿）"></textarea>
+        <div style="display:flex;gap:10px;align-items:center;flex:none">
+          <button class="ghost" id="pvBtn" style="padding:3px 10px;font-size:12px">▸ 预览发送内容</button>
+          <span class="mini" id="pvSum">规则正文 12.6K 字 + 0 块</span>
+        </div>
+        <div class="pvbox" id="pvBox"></div>
+      </div>
+    </div>
+
+    <div class="splitter" id="splitter" title="拖动调整输入/输出高度"></div>
+
+    <div class="zone outzone">
+      <div class="tabs">
+        <div class="tab on" data-tab="pos">正面</div>
+        <div class="tab" data-tab="neg">负面</div>
+        <div class="tab" data-tab="all">全部</div>
+        <div class="spacer"></div>
+        <button class="ghost" id="favCur" style="font-size:12px;padding:2px 9px" title="收藏当前结果">☆ 收藏</button>
+        <span class="mini" id="valTip" style="color:var(--ok)">校验通过</span>
+      </div>
+      <div class="outscroll">
+        <div class="outbox" id="outPos"><span class="f">q:</span> masterpiece, best quality, score_7, general, highres, official art
+<span class="f">a:</span> @fuzichoco
+<span class="f">c:</span> 1girl, long black hair, brown eyes, fair skin
+<span class="f">cl:</span> white shirt, black pleated skirt, thighhighs
+<span class="f">po:</span> standing, hand on hip, looking at viewer, smile
+<span class="f">bg:</span> classroom, desk, window, curtain, afternoon
+<span class="f">x:</span> upper body, the character occupies about two-thirds of the frame height, sidelighting, window shadow, <span class="bad">dramatic lighting</span>, well-exposed subject, visible facial features</div>
+        <div class="outbar">
+          <button onclick="copyOut('outPos','正面')">复制正面</button>
+          <button onclick="copyOut('outNeg','负面')">复制负面</button>
+          <span class="mini">Ctrl+Shift+C / V</span>
+          <button class="mini" style="margin-left:auto" onclick="toast('已自动修正 1 处编造光词')">自动修正</button>
+        </div>
+        <div class="outbox" id="outNeg" style="min-height:80px"><span class="f">n:</span> low quality, worst quality, blurry, bad anatomy, extra limbs, watermark, text
+<span class="f">nh:</span> bad hands, extra fingers, missing fingers, fused fingers, mutated hands</div>
+      </div>
+      <div class="statusline">
+        <span id="st">状态：待生成</span>
+        <div class="spacer"></div>
+        <button class="ghost" style="padding:2px 9px;font-size:12px" onclick="toast('已换一版（温度 +0.1）')">换一版</button>
+      </div>
+      <div class="usedbar" id="used"><span class="mini">生成后才这里显示本次调用的块</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="footbar">
+  <button class="primary" onclick="toast('静态骨架：还没接后端')">生成</button>
+  <button onclick="toast('重跑')">重跑</button>
+  <button onclick="toast('草稿已保存（自动每 5 秒）')">存草稿</button>
+  <button class="ghost" onclick="toast('历史记录面板（待实现）')">历史</button>
+  <div class="spacer"></div>
+  <span class="mini">Ctrl+Enter 生成 · Ctrl+S 存草稿 · Ctrl+Shift+C/V 复制</span>
+</div>
+
+<!-- 块库全屏选择器 -->
+<div class="overlay" id="ov">
+  <div class="sheet">
+    <div class="sheethead">
+      <b>块库</b><span class="mini" id="kbCount">共 151 块</span>
+      <input type="text" id="q" placeholder="搜块名 / 关键词 / 正文">
+      <label class="mini"><input type="checkbox" id="cs"> 搜正文</label>
+      <div class="spacer"></div>
+      <label class="mini"><input type="checkbox" id="sortByScore"> 按分数</label>
+      <button class="ghost" id="expandAll" style="font-size:12px">展开全部</button>
+      <button class="ghost" id="closePicker" style="font-size:12px">关闭</button>
+    </div>
+    <div class="panelhead" style="justify-content:space-between">
+      <span>本次已勾选 <span class="mini" id="pickCnt">0</span></span>
+      <button class="ghost" style="font-size:11px;padding:1px 8px" id="clearPick">清空</button>
+    </div>
+    <div class="pickstrip" id="bpicked"></div>
+    <div class="sheetbody"><div id="blist"></div></div>
+    <div class="sheetfoot">
+      <span class="mini" id="pickSum">已勾选 0 块 · 0 字</span>
+      <div class="spacer"></div>
+      <button class="ghost" id="cancelPick">取消</button>
+      <button class="primary" id="confirmPick">加入流水线</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ 假数据 ============ */
+let BLOCKS = [
+  {id:'b1', g:'场景与构图', t:'16.1 光线白名单全表',   c:1020, s:.90, kw:['打光','光线','白名单']},
+  {id:'b2', g:'场景与构图', t:'02-镜头与构图',        c:421,  s:.81, kw:['景别','机位','视线']},
+  {id:'b3', g:'场景与构图', t:'05-多人场景与外观分配',  c:561,  s:.72, kw:['多人','站位','外观']},
+  {id:'b4', g:'规范与预算', t:'4.2 TAG 数量控制',      c:486,  s:.61, kw:['数量','预算','tag']},
+  {id:'b5', g:'规范与预算', t:'4.2 TAG 数量控制',      c:486,  s:.81, kw:['数量','预算','tag']},
+  {id:'b6', g:'规范与预算', t:'1. ROLE 总则',          c:702,  s:.66, kw:['角色','总则']},
+  {id:'b7', g:'规范与预算', t:'2. OUTPUT PROTOCOL',   c:530,  s:.63, kw:['输出','协议']},
+  {id:'b8', g:'规范与预算', t:'1. ROLE 总则',          c:702,  s:.66, kw:['角色','总则']},
+  {id:'b9', g:'规范与预算', t:'2. OUTPUT PROTOCOL',   c:530,  s:.63, kw:['输出','协议']},
+  {id:'b10',g:'规范与预算', t:'3. 自检清单',          c:380,  s:.70, kw:['自检','校验']},
+  {id:'b11',g:'服装',       t:'8.2 内衣泳装睡衣',      c:525,  s:.69, kw:['内衣','泳装','睡衣']},
+  {id:'b12',g:'服装',       t:'8.5 材质与透明',        c:594,  s:.64, kw:['透明','材质','丝袜']},
+  {id:'b13',g:'画风',       t:'4.1 画风与媒介',        c:812,  s:.58, kw:['画风','厚涂','线稿']},
+  {id:'b14',g:'画风',       t:'15. 画师风格',          c:735,  s:.55, kw:['画师','画师串']},
+  {id:'b15',g:'面部',       t:'16. 面部细节',          c:498,  s:.62, kw:['面部','表情','瞳色']},
+];
+let MAXTOK = 19800, BODY_CHARS = 12615;
+let picked = [];   // 选择器里勾选的 id
+let selected = []; // 流水线 [{id,locked}]
+const blockOf = id => BLOCKS.find(b => b.id === id);
+
+/* ============ 选择器渲染 ============ */
+const blistEl = document.getElementById('blist');
+function mkItem(b){
+  const on = picked.includes(b.id), inPipe = selected.some(s => s.id === b.id);
+  const sc = SCORES[b.id] || 0;
+  const el = document.createElement('div');
+  el.className = 'bitem' + (on ? ' on' : '');
+  el.innerHTML = `<div class="ck">${on ? '✓' : ''}</div>
+    <div class="nm">${b.t}${inPipe ? '<span class="mini" style="color:var(--ok)"> · 已在流水线</span>' : ''}</div>
+    <div class="mt">${b.c} 字 · <span style="color:${sc>0?'var(--acc)':'var(--dim)'}">${sc>0?sc.toFixed(2):'—'}</span></div>`;
+  el.onclick = () => {
+    picked.includes(b.id) ? picked = picked.filter(x => x !== b.id) : picked.push(b.id);
+    renderBlocks(document.getElementById('q').value);
+    renderPicked();
+  };
+  return el;
+}
+let SCORES = {};
+async function scoreBlocks(){
+  try{
+    const q = document.getElementById('inp').value.trim();
+    if (!q){ SCORES = {}; return; }
+    const r = await (await fetch(`/api/retrieve?rs=${encodeURIComponent(RS)}&q=${encodeURIComponent(q)}`)).json();
+    SCORES = {};
+    (r.candidates||[]).forEach(c => { SCORES[c.id] = c.score; });
+  }catch(e){ SCORES = {}; }
+}
+function renderBlocks(filter=''){
+  blistEl.innerHTML = '';
+  const byScore = document.getElementById('sortByScore');
+  if (byScore && byScore.checked){
+    const arr = BLOCKS.filter(b => !filter || (b.t+(b.kw||[]).join('')).toLowerCase().includes(filter.toLowerCase()))
+      .slice().sort((a,b) => (SCORES[b.id]||0) - (SCORES[a.id]||0));
+    const d = document.createElement('div');
+    d.className = 'group open';
+    d.innerHTML = `<div class="gtitle"><span class="arrow">▶</span>按分数排序<span class="mini" style="margin-left:auto">${arr.length}</span></div><div class="gitems"></div>`;
+    const wrap = d.querySelector('.gitems');
+    arr.forEach(b => wrap.appendChild(mkItem(b)));
+    blistEl.appendChild(d);
+    return;
+  }
+  const byGroup = {};
+  BLOCKS.filter(b => !filter || (b.t+b.kw.join('')).toLowerCase().includes(filter.toLowerCase()))
+    .forEach(b => (byGroup[b.g] = byGroup[b.g] || []).push(b));
+  const groups = Object.keys(byGroup);
+  if (!groups.length){ blistEl.innerHTML = '<div class="empty" style="margin-top:20px">没有匹配的块</div>'; return; }
+  groups.forEach((g, gi) => {
+    const d = document.createElement('div');
+    d.className = 'group' + (gi < 2 || filter ? ' open' : '');
+    d.innerHTML = `<div class="gtitle"><span class="arrow">▶</span>${g}
+      <span class="mini" style="margin-left:auto">${byGroup[g].length}</span></div>
+      <div class="gitems"></div>`;
+    d.querySelector('.gtitle').onclick = () => d.classList.toggle('open');
+    const wrap = d.querySelector('.gitems');
+    byGroup[g].forEach(b => wrap.appendChild(mkItem(b)));
+    blistEl.appendChild(d);
+  });
+}
+function renderPicked(){
+  const box = document.getElementById('bpicked'), pb = document.getElementById('bpiped');
+  box.innerHTML = picked.length ? '' : '<div class="mini" style="padding:8px 0">左边点块勾选</div>';
+  picked.forEach(id => {
+    const b = blockOf(id);
+    const el = document.createElement('div');
+    el.className = 'pickeditem';
+    el.innerHTML = `<div class="name">${b.t}</div><div class="mini">${b.c} 字</div>
+      <button class="ghost" style="padding:0 6px;font-size:11px">✕</button>`;
+    el.querySelector('button').onclick = () => { picked = picked.filter(x => x !== id); renderBlocks(document.getElementById('q').value); renderPicked(); };
+    box.appendChild(el);
+  });
+  const chars = picked.reduce((a,id) => a + blockOf(id).c, 0);
+  document.getElementById('pickCnt').textContent = picked.length;
+  const pipeCntEl = document.getElementById('pipeCnt');
+  if (pipeCntEl) pipeCntEl.textContent = selected.length;
+  document.getElementById('pickSum').textContent = `已勾选 ${picked.length} 块 · ${chars} 字`;
+}
+
+/* ============ 流水线 ============ */
+const pipe = document.getElementById('pipe'), pipeEmpty = document.getElementById('pipeEmpty');
+function addBlock(id){ if (!selected.some(s => s.id === id)) selected.push({id, locked:false}); renderPipe(); }
+function renderPipe(){
+  pipe.querySelectorAll('.pchip').forEach(n => n.remove());
+  pipeEmpty.style.display = selected.length ? 'none' : 'block';
+  selected.forEach((s, i) => {
+    const b = blockOf(s.id);
+    const el = document.createElement('div');
+    el.className = 'pchip' + (s.locked ? ' lock' : '');
+    el.draggable = true;
+    el.innerHTML = `<div class="idx">${i+1}</div><div class="name">${b.t}</div>
+      <div class="bytes">${b.c}</div>
+      <div class="act"><button title="锁定">${s.locked?'🔒':'🔓'}</button><button title="移除">✕</button></div>`;
+    el.querySelectorAll('button')[0].onclick = e => { e.stopPropagation(); s.locked = !s.locked; renderPipe(); };
+    el.querySelectorAll('button')[1].onclick = e => { e.stopPropagation(); selected = selected.filter(x => x.id !== s.id); renderPipe(); };
+    el.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', s.id); });
+    el.addEventListener('dragover', e => e.preventDefault());
+    el.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation();
+      const moved = e.dataTransfer.getData('text/plain');
+      const from = selected.findIndex(x => x.id === moved);
+      if (from < 0){ if (blockOf(moved)) addBlock(moved); return; }
+      const [item] = selected.splice(from, 1); selected.splice(i, 0, item); renderPipe();
+    });
+    pipe.appendChild(el);
+  });
+  const chars = selected.reduce((a,s) => a + blockOf(s.id).c, 0);
+  const tok = Math.round((chars + BODY_CHARS) * 0.7);
+  const pct = Math.min(100, Math.round(tok / MAXTOK * 100));
+  document.getElementById('cum').textContent = `${selected.length} 块 · ${chars} 字`;
+  document.getElementById('pct').textContent = `${pct}%`;
+  document.getElementById('cnt').textContent = selected.length;
+  document.getElementById('budgetTop').textContent = `预算 ${pct}%`;
+  document.getElementById('pvSum').textContent = `规则正文 12.6K 字 + ${selected.length} 块`;
+  const f = document.getElementById('barFill');
+  f.style.width = pct + '%';
+  f.style.background = pct > 90 ? 'var(--bad)' : 'linear-gradient(90deg,var(--acc2),var(--acc))';
+  // 预览内容
+  document.getElementById('pvBox').textContent =
+    `[system] 规则正文 ${BODY_CHARS} 字\n` +
+    selected.map((s,i) => `[块${i+1}] ${blockOf(s.id).t}（${blockOf(s.id).c} 字）`).join('\n') +
+    `\n[user] （你的输入）\n合计 ${chars + BODY_CHARS} 字 ≈ ${tok} token（占 65,536 的 ${pct}%）`;
+}
+
+/* ============ 选择器开关 ============ */
+const ov = document.getElementById('ov');
+function openPicker(){
+  picked = [...selected.map(s => s.id)];
+  ov.classList.add('show');
+  renderBlocks(); renderPicked();
+  scoreBlocks().then(() => { if (document.getElementById('sortByScore').checked) renderBlocks(document.getElementById('q').value); else renderBlocks(document.getElementById('q').value); });
+}
+function closePicker(){ ov.classList.remove('show'); }
+document.getElementById('openPicker').onclick = openPicker;
+document.getElementById('clearSel').onclick = () => {
+  if (!selected.length) return toast('流水线已经是空的');
+  selected = [];
+  renderPipe();
+  toast('已清空，下次生成会按输入自动取块');
+};
+document.getElementById('closePicker').onclick = closePicker;
+document.getElementById('cancelPick').onclick = closePicker;
+document.getElementById('clearPick').onclick = () => { picked = []; renderBlocks(document.getElementById('q').value); renderPicked(); };
+document.getElementById('confirmPick').onclick = () => {
+  selected = picked.map(id => { const old = selected.find(s => s.id === id); return {id, locked: old ? old.locked : false}; });
+  renderPipe(); closePicker(); toast(`已加入 ${selected.length} 块`);
+};
+document.getElementById('sortByScore').onchange = () => renderBlocks(document.getElementById('q').value);
+document.getElementById('q').oninput = e => {
+  const v = e.target.value.trim();
+  if (document.getElementById('cs').checked && v) return searchContent(v);
+  renderBlocks(v);
+};
+async function searchContent(v){
+  try{
+    const r = await (await fetch(`/api/search?rs=${encodeURIComponent(RS)}&q=${encodeURIComponent(v)}`)).json();
+    const hits = r.hits || [];
+    blistEl.innerHTML = hits.length ? '' : '<div class="empty" style="margin-top:20px">正文里没搜到这个词</div>';
+    hits.forEach(h => {
+      const on = picked.includes(h.id);
+      const el = document.createElement('div');
+      el.className = 'bitem' + (on ? ' on' : '');
+      el.innerHTML = `<div class="ck">${on?'✓':''}</div>
+        <div style="flex:1;min-width:0">
+          <div class="nm">${h.t}</div>
+          <div class="mini" style="margin-top:2px;white-space:normal">${h.snippet}</div>
+        </div>
+        <div class="mt">${h.c}字 · ${h.hits}×</div>`;
+      el.onclick = () => { picked.includes(h.id) ? picked = picked.filter(x=>x!==h.id) : picked.push(h.id); searchContent(v); renderPicked(); };
+      blistEl.appendChild(el);
+    });
+    document.getElementById('kbCount').textContent = `正文命中 ${hits.length} 块`;
+  }catch(e){ toast('搜索失败'); }
+}
+document.getElementById('expandAll').onclick = () => {
+  const all = [...document.querySelectorAll('.group')];
+  const anyClosed = all.some(g => !g.classList.contains('open'));
+  all.forEach(g => g.classList.toggle('open', anyClosed));
+};
+
+/* ============ 输入/输出 拖拽调整 ============ */
+const splitter = document.getElementById('splitter'), inputZone = document.getElementById('inputZone');
+let dragging = false;
+splitter.onmousedown = () => { dragging = true; document.body.style.userSelect = 'none'; };
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const top = document.querySelector('.main').getBoundingClientRect().top;
+  const h = Math.max(140, Math.min(window.innerHeight - top - 220, e.clientY - top));
+  inputZone.style.height = h + 'px';
+});
+document.addEventListener('mouseup', () => { dragging = false; document.body.style.userSelect = ''; });
+
+/* ============ Tab / 主题 / 预览 ============ */
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
+  t.classList.add('on');
+  const map = {pos:[1,0], neg:[0,1], all:[1,1]}[t.dataset.tab];
+  document.getElementById('outPos').style.display = map[0] ? 'block' : 'none';
+  document.getElementById('outNeg').style.display = map[1] ? 'block' : 'none';
+});
+document.getElementById('themeBtn').onclick = () => {
+  const h = document.documentElement, n = h.dataset.theme === 'dark' ? 'light' : 'dark';
+  h.dataset.theme = n;
+  document.getElementById('themeBtn').textContent = n === 'dark' ? '🌙' : '☀️';
+};
+document.getElementById('pvBtn').onclick = () => {
+  const b = document.getElementById('pvBox');
+  b.classList.toggle('show');
+  document.getElementById('pvBtn').textContent = (b.classList.contains('show') ? '▾' : '▸') + ' 预览发送内容';
+};
+
+/* ============ 工具 ============ */
+let tmr;
+function toast(m){ const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show');
+  clearTimeout(tmr); tmr = setTimeout(() => t.classList.remove('show'), 1700); }
+function copyOut(id, label){
+  const txt = document.getElementById(id).innerText;
+  navigator.clipboard.writeText(txt).then(() => toast('已复制' + label)).catch(() => toast('复制失败'));
+}
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'c'){ e.preventDefault(); copyOut('outPos','正面'); }
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'v'){ e.preventDefault(); copyOut('outNeg','负面'); }
+  if (e.key === 'Escape'){
+    ['#batchOv','#favOv','#histOv','#setOv','#blkOv'].forEach(s => {
+      const n = document.querySelector(s); if (n) n.remove();
+    });
+    const dv = document.getElementById('dictOv');
+    if (dv && dv.classList.contains('show')) dv.classList.remove('show');
+    if (ov.classList.contains('show')) closePicker();
+  }
+});
+document.getElementById('setBtn').onclick = () => toast('设置面板（模型 / 端口 / 预算 / 预览开关）');
+
+renderPipe(); renderBlocks();
+
+/* ================= 接后端 ================= */
+let RS = null;
+function setOut(text){
+  const pos = [], neg = [];
+  text.trim().split('\n').forEach(l => {
+    const m = l.match(/^\**([a-z]{1,3})\**\s*[:：]/);
+    (m && (m[1] === 'n' || m[1] === 'nh') ? neg : pos).push(l);
+  });
+  const fmt = arr => arr.map(l => l.replace(/^\**([a-z]{1,3})\**\s*[:：]\s*/, (x, k) => `<span class="f">${k}:</span> `))
+    .join('\n').replace(/(dramatic lighting|soft light(?:ing)?|rim light|warm light|cool light|moody lighting|cinematic lighting)/gi, '<span class="bad">$1</span>');
+  document.getElementById('outPos').innerHTML = fmt(pos) || '<span class="mini">（无）</span>';
+  document.getElementById('outNeg').innerHTML = neg.length ? fmt(neg) : '<span class="mini">（无负面）</span>';
+}
+async function boot(){
+  try{
+    const d = await (await fetch('/api/bootstrap')).json();
+    RS = d.active;
+    const sel = document.getElementById('ruleset');
+    sel.innerHTML = d.rulesets.map(r => `<option value="${r.id}">${r.display_name} · ${r.blocks} 块</option>`).join('');
+    sel.value = d.active;
+    sel.onchange = async e => {
+      await fetch('/api/active', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({rs: e.target.value})});
+      boot();
+    };
+    const cur = d.rulesets.find(r => r.id === d.active) || {};
+    BODY_CHARS = cur.entry_chars || 0;
+    const em = document.getElementById('entryMode');
+    em.value = cur.entry_mode || 'full';
+    em.onchange = async () => {
+      await fetch('/api/ruleset', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({rs: RS, entry_mode: em.value})});
+      await fetch('/api/reload', {method:'POST'});
+      boot();
+      toast('入口切换为' + (em.value === 'slim' ? '精简' : '全量'));
+    };
+    if (d.model && d.model.n_ctx) MAXTOK = d.model.n_ctx;
+    document.getElementById('kbCount').textContent = `共 ${(d.blocks||[]).length} 块`;
+    document.getElementById('model').innerHTML = `<option>${d.model.model} · ${d.model.n_ctx}</option>`;
+    if (d.blocks && d.blocks.length){
+      BLOCKS = d.blocks.map(b => ({id:b.id, t:b.t, c:b.c, kw:b.kw||[], g:'全部', s:0}));
+      const valid = new Set(BLOCKS.map(b => b.id));
+      const before = selected.length;
+      selected = selected.filter(s => valid.has(s.id));
+      if (before && !selected.length) toast('规则集变了，已清空不属于它的选块');
+      renderBlocks(); renderPipe();
+    }
+    document.getElementById('st').textContent = `状态：${cur.display_name||d.active} · ${cur.blocks} 块 · 正文 ${cur.entry_chars} 字`;
+    if (!BODY_CHARS) toast('该规则集没有入口正文，请在块库选常驻块');
+    if (d.vector && d.vector.enabled && !d.vector.count){
+      toast('向量检索已启用但还没建库：设置 → 建/更新向量库', 4000);
+    }
+  }catch(e){ console.warn(e); toast('后端未就绪'); }
+}
+document.querySelector('.footbar button.primary').onclick = async () => {
+  const btn = document.querySelector('.footbar button.primary');
+  const text = document.getElementById('inp').value.trim();
+  if (!text) return toast('先写描述');
+  if (document.getElementById('batch').checked) return runBatch();
+  btn.disabled = true; btn.textContent = '生成中…';
+  document.getElementById('st').textContent = '状态：生成中…';
+  try{
+    const r = await (await fetch('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({rs: RS, text, blocks: selected.map(s => s.id),
+        locked: selected.filter(s => s.locked).map(s => s.id),
+        expand: document.getElementById('expand').checked})})).json();
+    if (r.error){ toast(r.error); document.getElementById('st').textContent = '状态：失败'; }
+    else {
+      setOut(r.text);
+      try{ pushHist(); }catch(e){}
+      if (r.expanded) toast('改写：' + r.expanded.slice(0, 80), 3000);
+      if (r.over){
+        const sug = (r.over.suggest||[]).map(x => x.title+'('+x.chars+'字)').join('、');
+        toast(`超预算 ${r.over.total}/${r.over.cap} 字 · 可删：${sug}`, 4000);
+        document.getElementById('valTip').textContent = `超预算 ${r.over.total} 字`;
+        document.getElementById('valTip').style.color = 'var(--warn)';
+      }
+      const ub = document.getElementById('used');
+      if (ub){
+        const list = r.used || [];
+        ub.innerHTML = list.length
+          ? '<span class="mini" style="align-self:center">本次调用 ' + list.length + ' 块：</span>' +
+            list.map((u, i) => `<span class="ub" title="${(u.why||[]).join(' / ')}"><i>${i + 1}</i><b>${u.title}</b>${u.chars}字${(u.why||[]).length ? ' · 命中 ' + (u.why||[]).slice(0,3).join(',') : ''}</span>`).join('')
+          : '<span class="mini">本次没有取块（只用了入口正文）</span>';
+        if (!selected.length && list.length){
+          selected = list.map(u => ({id: u.id, locked: false}));
+          renderPipe();
+        }
+      }
+      const ok = r.issues && r.issues.length === 0;
+      document.getElementById('valTip').textContent = ok ? '校验通过' : `校验 ${r.issues.length} 处问题`;
+      document.getElementById('valTip').style.color = ok ? 'var(--ok)' : 'var(--bad)';
+      document.getElementById('st').textContent = `状态：${r.sec}s · 用 ${(r.used||[]).length} 块 · ${r.chars} 字${r.retried?' · 重跑过':''}`;
+      toast(ok ? `完成 ${r.sec}s` : `完成，${r.issues.join(' / ')}`);
+    }
+  }catch(e){ toast('请求失败：' + e); document.getElementById('st').textContent = '状态：失败'; }
+  finally{ btn.disabled = false; btn.textContent = '生成'; }
+};
+boot();
+</script>
+<style>
+.outbox{height:210px;min-height:80px;resize:vertical;overflow:auto}
+.rsz{height:10px;cursor:row-resize;position:relative;flex:none;margin:-4px 0 -2px}
+.rsz::after{content:"";position:absolute;left:50%;top:4px;transform:translateX(-50%);width:52px;height:3px;
+  border-radius:99px;background:var(--line);transition:.15s}
+.rsz:hover::after{background:var(--acc);width:70px}
+</style>
+<script>
+document.querySelectorAll('.outbox').forEach(box => {
+  const bar = document.createElement('div');
+  bar.className = 'rsz';
+  bar.title = '拖动调整高度 · 双击复位';
+  box.insertAdjacentElement('afterend', bar);
+  let on = false, y0 = 0, h0 = 0;
+  bar.addEventListener('mousedown', e => {
+    on = true; y0 = e.clientY; h0 = box.getBoundingClientRect().height;
+    document.body.style.userSelect = 'none'; e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!on) return;
+    box.style.height = Math.max(80, h0 + e.clientY - y0) + 'px';
+  });
+  window.addEventListener('mouseup', () => { on = false; document.body.style.userSelect = ''; });
+  bar.addEventListener('dblclick', () => { box.style.height = '210px'; });
+});
+</script>
+<style>
+#dictOv{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;z-index:50}
+#dictOv.show{display:block}
+#dictSheet{position:absolute;right:0;top:0;height:100%;width:min(560px,55vw);background:var(--panel);
+  border-left:1px solid var(--line);display:flex;flex-direction:column;box-shadow:-14px 0 36px rgba(0,0,0,.38)}
+.drow{display:flex;gap:8px;align-items:center;padding:5px 12px;border-bottom:1px solid var(--line);font-size:12.5px}
+.drow b{min-width:96px;font-weight:600}
+.drow span{flex:1;color:var(--dim);font-family:ui-monospace,Consolas,monospace;font-size:11.5px}
+.drow button{padding:0 7px;font-size:11px}
+.dadd{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}
+.dadd input{flex:1}
+.dlist{flex:1;overflow:auto}
+.dmiss{padding:6px 12px;font-size:11.5px;color:var(--warn);border-bottom:1px solid var(--line)}
+</style>
+<div id="dictOv"><div id="dictSheet">
+  <div class="panelhead" style="justify-content:space-between">
+    <span>检索词典 <span class="mini" id="dictCnt">0</span></span>
+    <button class="ghost" style="font-size:12px" onclick="document.getElementById('dictOv').classList.remove('show')">关闭</button>
+  </div>
+  <div class="dadd">
+    <input id="dzh" placeholder="中文说法，如 逆光">
+    <input id="den" placeholder="英文 tag，如 backlighting">
+    <button class="primary" onclick="dictAdd()">添加</button>
+  </div>
+  <div class="drow" style="justify-content:space-between;border-bottom:none">
+    <span class="mini" id="tdStat">联网词典：未抓取</span>
+    <button class="ghost" id="tdBtn" style="font-size:11px">联网更新</button>
+  </div>
+  <div class="dmiss" id="dmiss"></div>
+  <div class="dlist" id="dlist"></div>
+</div></div>
+<script>
+async function dictOpen(){
+  dictRefreshTD();
+  const d = await (await fetch('/api/dict')).json();
+  const list = document.getElementById('dlist');
+  document.getElementById('dictCnt').textContent = Object.keys(d.dict||{}).length + ' 条';
+  const miss = (d.misses||[]).slice(0,8).map(m=>`${m.q}(${m.n})`).join(' · ');
+  document.getElementById('dmiss').textContent = miss ? '未命中记录：' + miss : '';
+  list.innerHTML = Object.entries(d.dict||{}).map(([k,v])=>
+    `<div class="drow"><b>${k}</b><span>${v}</span><button class="ghost" onclick="dictDel('${k}')">✕</button></div>`
+  ).join('') || '<div class="mini" style="padding:12px">词典为空</div>';
+  document.getElementById('dictOv').classList.add('show');
+}
+async function dictPost(body){
+  await fetch('/api/dict', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  dictOpen();
+}
+function dictAdd(){
+  const zh = document.getElementById('dzh').value.trim();
+  const en = document.getElementById('den').value.trim();
+  if (!zh || !en) return toast('两个都要填');
+  dictPost({add: {[zh]: en}});
+  document.getElementById('dzh').value = ''; document.getElementById('den').value = '';
+  toast('已加入词典');
+}
+function dictDel(k){ dictPost({del: k}); }
+document.querySelector('.top').insertAdjacentHTML('beforeend',
+  '<button id="dictBtn" title="检索词典">📖</button>');
+document.getElementById('dictBtn').onclick = dictOpen;
+</script>
+<script>
+/* ===== 草稿 / 历史 / 快捷键 / 换一版 ===== */
+const LS_D = 'ps_draft_v1', LS_H = 'ps_hist_v1';
+function curState(){
+  return {text: document.getElementById('inp').value,
+          blocks: selected.map(s => s.id), rs: RS, ts: Date.now()};
+}
+function saveDraft(silent){
+  try{
+    localStorage.setItem(LS_D, JSON.stringify(curState()));
+    if (!silent) toast('草稿已保存');
+  }catch(e){ if(!silent) toast('保存失败'); }
+}
+function loadDraft(){
+  try{
+    const d = JSON.parse(localStorage.getItem(LS_D) || 'null');
+    if (!d) return;
+    if (d.text) document.getElementById('inp').value = d.text;
+    if (d.blocks && d.blocks.length && !selected.length){
+      const valid = new Set(BLOCKS.map(b => b.id));
+      const keep = (d.blocks || []).filter(id => valid.has(id));
+      if (keep.length){ selected = keep.map(id => ({id, locked:false})); renderPipe(); }
+    }
+    if (d.ts) toast('已恢复 ' + new Date(d.ts).toLocaleTimeString() + ' 的草稿');
+  }catch(e){}
+}
+function pushHist(){
+  try{
+    const h = JSON.parse(localStorage.getItem(LS_H) || '[]');
+    const s = curState();
+    if (!s.text) return;
+    h.unshift(s);
+    localStorage.setItem(LS_H, JSON.stringify(h.slice(0, 30)));
+  }catch(e){}
+}
+function openHist(){
+  try{
+    const h = JSON.parse(localStorage.getItem(LS_H) || '[]');
+    document.querySelectorAll('#histOv').forEach(n => n.remove());
+    const ov = document.createElement('div');
+    ov.id = 'histOv';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:55;display:flex;align-items:center;justify-content:center';
+    const rows = h.length ? h.map((x, i) =>
+      `<div class="drow" style="cursor:pointer" data-i="${i}"><span style="flex:1;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${(x.text||'').slice(0,46)}</span><span>${(x.blocks||[]).length}块</span><span>${new Date(x.ts).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</span></div>`
+    ).join('') : '<div class="mini" style="padding:16px">还没有历史</div>';
+    ov.innerHTML = `<div style="width:min(560px,90vw);max-height:70vh;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column">
+      <div class="panelhead" style="justify-content:space-between"><span>历史记录</span><button class="ghost" style="font-size:12px" id="hclose">关闭</button></div>
+      <div style="overflow:auto" id="hlist">${rows}</div></div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('#hclose').onclick = () => ov.remove();
+    ov.onclick = e => { if (e.target === ov) ov.remove(); };
+    ov.querySelectorAll('[data-i]').forEach(el => el.onclick = () => {
+      const x = h[+el.dataset.i];
+      document.getElementById('inp').value = x.text || '';
+      selected = (x.blocks||[]).map(id => ({id, locked:false}));
+      renderPipe(); ov.remove(); toast('已载入历史');
+    });
+  }catch(e){ toast('读取历史失败'); }
+}
+async function rerun(bump){
+  const text = document.getElementById('inp').value.trim();
+  if (!text) return toast('先写描述');
+  if (document.getElementById('batch').checked) return runBatch();
+  const r = await (await fetch('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({rs: RS, text, blocks: selected.map(s => s.id),
+      locked: selected.filter(s => s.locked).map(s => s.id), retry:false, bump: bump ? 0.15 : 0})})).json();
+  if (r.error) return toast(r.error);
+  setOut(r.text);
+  document.getElementById('st').textContent = `状态：${r.sec}s · 用 ${(r.used||[]).length} 块 · ${r.chars} 字`;
+  toast(bump ? '已换一版' : '已重跑');
+}
+/* 覆盖底栏按钮 */
+(function(){
+  const btns = document.querySelectorAll('.footbar button');
+  if (btns[1]) btns[1].onclick = () => rerun(false);
+  if (btns[2]) btns[2].onclick = () => saveDraft(false);
+  if (btns[3]) btns[3].onclick = openHist;
+  const alt = document.querySelector('.statusline button');
+  if (alt) alt.onclick = () => rerun(true);
+})();
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'Enter'){
+    e.preventDefault();
+    const b = document.querySelector('.footbar button.primary');
+    if (b) b.click();
+  }
+  if (e.ctrlKey && e.key.toLowerCase() === 's'){ e.preventDefault(); saveDraft(false); }
+});
+setInterval(() => { try{ saveDraft(true); }catch(e){} }, 5000);
+setTimeout(loadDraft, 900);
+</script>
+<script>
+/* ===== 设置面板 / 块预览 ===== */
+function modal(id, html){
+  document.querySelectorAll('#' + id).forEach(n => n.remove());
+  const ov = document.createElement('div');
+  ov.id = id;
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:58;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML = html;
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  document.body.appendChild(ov);
+  return ov;
+}
+async function openSettings(){
+  const [c, bs] = await Promise.all([
+    fetch('/api/config').then(r => r.json()),
+    fetch('/api/bootstrap').then(r => r.json())
+  ]);
+  window.__bd = bs.budget || {};
+  window.__v = Object.assign({}, c.vector || {}, bs.vector || {});
+  if (!RS && bs.active) RS = bs.active;
+  const rows = (c.models || []).map((m, i) => `
+    <div class="drow" style="flex-wrap:wrap;gap:6px;padding:8px 10px">
+      <input data-m="${i}" data-k="label" value="${m.label||''}" placeholder="名称" style="width:90px">
+      <input data-m="${i}" data-k="base_url" value="${m.base_url||''}" placeholder="地址" style="flex:1;min-width:180px">
+      <input data-m="${i}" data-k="model" value="${m.model||''}" placeholder="模型名" style="width:120px">
+      <input data-m="${i}" data-k="n_ctx" value="${m.n_ctx||''}" placeholder="n_ctx" style="width:70px">
+      <input data-m="${i}" data-k="max_output_tokens" value="${m.max_output_tokens||''}" placeholder="输出" style="width:60px">
+      <input data-m="${i}" data-k="temperature" value="${m.temperature||''}" placeholder="温度" style="width:56px">
+    </div>`).join('');
+  const b = c.budget || {};
+  const ov = modal('setOv', `
+    <div style="width:min(760px,94vw);max-height:86vh;background:var(--panel);border:1px solid var(--line);
+      border-radius:12px;display:flex;flex-direction:column;overflow:hidden">
+      <div class="panelhead" style="justify-content:space-between"><span>设置</span>
+        <button class="ghost" style="font-size:12px" id="sc">关闭</button></div>
+      <div style="overflow:auto;padding:10px 0">
+        <div class="panelhead">模型（可多套）</div>
+        <div id="mrow">${rows || '<div class="mini" style="padding:10px">没有模型，点下面添加</div>'}</div>
+        <div style="padding:8px 12px"><button class="ghost" id="addm">＋ 添加模型</button></div>
+        <div class="panelhead">取块数量（当前规则集）</div>
+        <div class="drow"><b>默认</b><input id="bchunk" value="${(window.__bd||{}).default_chunks||6}" style="width:70px">
+          <b style="min-width:36px">最少</b><input id="bmin" value="${(window.__bd||{}).min_chunks||2}" style="width:60px">
+          <b style="min-width:36px">最多</b><input id="bmax" value="${(window.__bd||{}).max_chunks||8}" style="width:60px"></div>
+        <div class="drow"><b>注入上限(字)</b><input id="bchars" value="${(window.__bd||{}).max_inject_chars||15000}" style="width:90px"></div>
+        <div class="drow"><b>硬顶(字)</b><input id="bhard" value="${(window.__bd||{}).hard_ceiling_chars||24000}" style="width:90px"></div>
+        <div class="drow"><b>别名上限</b><input id="balias" value="${(window.__bd||{}).alias_max||500}" style="width:80px">
+          <span class="mini">自动学习的词条最多存多少</span></div>
+        <div class="panelhead">检索增强</div>
+        <div class="drow" style="flex-wrap:wrap">
+          <b>向量检索</b>
+          <label class="mini"><input type="checkbox" id="vvec" ${(window.__v||{}).enabled?'checked':''}> 启用</label>
+          <span class="mini" id="vstat">检测中…</span>
+          <button class="ghost" id="vbuild" style="font-size:11px;margin-left:auto">建 / 更新向量库</button>
+        </div>
+        <div class="drow"><b>向量权重</b><input id="vw" value="${(window.__v||{}).vector_weight||0.35}" style="width:60px">
+          <span class="mini">越大越信语义相似度，0.2 保守 · 0.6 激进；只用 CPU，不抢 27B 显存</span></div>
+        <div class="drow"><b>联网词典</b><span class="mini" id="tdstat2">—</span>
+          <button class="ghost" id="tdbtn2" style="font-size:11px;margin-left:auto">抓取中文名 / 热度</button></div>
+        <div class="panelhead">添加规则集</div>
+        <div class="drow"><input id="newroot" placeholder="粘贴一个技能目录或规则集目录的完整路径" style="flex:1">
+          <button class="ghost" id="addroot">添加</button></div>
+        <div class="drow"><b>当前目录</b><span style="white-space:normal">${(c.ruleset_roots||[]).join(' ｜ ')}</span></div>
+        <div class="drow"><b>端口</b><input id="sport" value="${c.port}" style="width:80px">
+          <span class="mini">改完需重启服务</span></div>
+        <div class="drow"><b>规则集目录</b><span style="white-space:normal">${(c.ruleset_roots||[]).join(' ｜ ')}</span></div>
+      </div>
+      <div class="sheetfoot"><span class="mini" id="smsg"></span><div class="spacer"></div>
+        <button class="ghost" id="scancel">取消</button>
+        <button class="primary" id="ssave">保存</button></div>
+    </div>`);
+  ov.querySelector('#sc').onclick = ov.querySelector('#scancel').onclick = () => ov.remove();
+  const vs = ov.querySelector('#vstat');
+  if (vs) vs.textContent = ((bs.vector && bs.vector.count) || 0) + ' 块已建 · '
+    + ((bs.vector && bs.vector.built) || '未建库') + (bs.vector && bs.vector.dim ? ' · ' + bs.vector.dim + '维' : '');
+  const td2 = ov.querySelector('#tdstat2');
+  const tdBtn2 = ov.querySelector('#tdbtn2');
+  if (tdBtn2) tdBtn2.onclick = async () => {
+    tdBtn2.disabled = true; tdBtn2.textContent = '抓取中…';
+    await fetch('/api/heat', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'});
+    const tick = setInterval(async () => {
+      const s = await (await fetch('/api/heat')).json();
+      const p = (s.dict && s.dict.prog) || {};
+      if (td2) td2.textContent = p.msg || (p.state === 'running' ? '抓取中…' : '');
+      if (p.state === 'done' || p.state === 'error'){
+        clearInterval(tick); tdBtn2.disabled = false; tdBtn2.textContent = '抓取中文名 / 热度';
+        toast('联网词典：' + (p.msg || s.dict.n + ' 个 tag'));
+        dictRefreshTD();
+      }
+    }, 1200);
+  };
+  if (td2) td2.textContent = '点击右侧按钮从 Danbooru 镜像抓中文名与热度';
+  const vb = ov.querySelector('#vbuild');
+  if (vb) vb.onclick = async () => {
+    vb.disabled = true; vb.textContent = '构建中…';
+    await fetch('/api/vector', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({rs: RS, action: 'build'})});
+    const tick = setInterval(async () => {
+      const s = await (await fetch(`/api/vector?rs=${encodeURIComponent(RS)}`)).json();
+      const p = s.progress || {};
+      if (vs) vs.textContent = (p.msg || p.state || '') + ' · 已建 ' + (s.count || 0) + ' 块';
+      if (p.state === 'done' || p.state === 'error'){
+        clearInterval(tick); vb.disabled = false; vb.textContent = '建 / 更新向量库';
+        toast('向量库：' + (p.msg || '完成'));
+      }
+    }, 1500);
+  };
+  const ar = ov.querySelector('#addroot');
+  if (ar) ar.onclick = async () => {
+    const path = ov.querySelector('#newroot').value.trim();
+    if (!path) return toast('先填路径');
+    const r = await (await fetch('/api/ruleset/add', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({path})})).json();
+    toast(r.ok ? ('已添加，共 ' + r.rulesets.length + ' 套规则集') : r.msg);
+    if (r.ok) setTimeout(() => location.reload(), 700);
+  };
+  ov.querySelector('#addm').onclick = () => {
+    ov.querySelector('#mrow').insertAdjacentHTML('beforeend', `
+      <div class="drow" style="flex-wrap:wrap;gap:6px;padding:8px 10px">
+        <input data-m="new" data-k="label" value="新模型" style="width:90px">
+        <input data-m="new" data-k="base_url" value="http://127.0.0.1:8081/v1" style="flex:1;min-width:180px">
+        <input data-m="new" data-k="model" value="my-model" style="width:120px">
+        <input data-m="new" data-k="n_ctx" value="65536" style="width:70px">
+        <input data-m="new" data-k="max_output_tokens" value="4096" style="width:60px">
+        <input data-m="new" data-k="temperature" value="0.75" style="width:56px">
+      </div>`);
+  };
+  ov.querySelector('#ssave').onclick = async () => {
+    const models = (c.models || []).map(m => ({...m}));
+    let nw = null;
+    ov.querySelectorAll('[data-m]').forEach(el => {
+      const k = el.dataset.k, v = el.value.trim();
+      const key = el.dataset.m === 'new' ? 'new' : +el.dataset.m;
+      if (key === 'new'){ nw = nw || {id:'m' + Date.now(), api_key:'sk-local', top_p:0.9, enable_thinking:false, timeout_sec:300}; nw[k] = /^\d+$/.test(v) ? +v : (k==='temperature' ? +v : v); }
+      else if (key >= 0 && models[key]) models[key][k] = /^\d+$/.test(v) ? +v : (k==='temperature' ? +v : v);
+    });
+    if (nw) models.push(nw);
+    const body = {models, active: (c.active || (models[0] && models[0].id)),
+                  port: +ov.querySelector('#sport').value || c.port,
+                  vector: {enabled: !!(ov.querySelector('#vvec') && ov.querySelector('#vvec').checked)}};
+    await fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const bud = {default_chunks: +ov.querySelector('#bchunk').value || 6,
+                 min_chunks: +ov.querySelector('#bmin').value || 2,
+                 max_chunks: +ov.querySelector('#bmax').value || 8,
+                 max_inject_chars: +ov.querySelector('#bchars').value || 15000,
+                 hard_ceiling_chars: +ov.querySelector('#bhard').value || 24000,
+                 alias_max: +ov.querySelector('#balias').value || 500};
+    const r = await (await fetch('/api/ruleset', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({rs: RS, budget: bud, select: {vector_weight: +ov.querySelector('#vw').value || 0.35}})})).json();
+    if (r.ok){ ov.remove(); toast('已保存，重新加载…'); setTimeout(()=>location.reload(), 600); }
+    else toast('保存失败');
+  };
+}
+document.getElementById('model').onchange = e => {
+  if (e.target.value.indexOf('+') >= 0){ openSettings(); e.target.selectedIndex = 0; }
+};
+document.getElementById('setBtn').onclick = openSettings;
+
+/* 双击已选块看全文 */
+document.getElementById('pipe').addEventListener('dblclick', async e => {
+  const chip = e.target.closest('.pchip');
+  if (!chip) return;
+  const idx = [...document.querySelectorAll('#pipe .pchip')].indexOf(chip);
+  const s = selected[idx];
+  if (!s) return;
+  const d = await (await fetch(`/api/block?rs=${encodeURIComponent(RS)}&id=${encodeURIComponent(s.id)}`)).json();
+  const ovb = modal('blkOv', `<div style="width:min(880px,94vw);max-height:88vh;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;display:flex;flex-direction:column;overflow:hidden">
+    <div class="panelhead" style="justify-content:space-between"><span>${d.title||''} · ${d.chars||0} 字（可直接编辑，保存即生效）</span>
+      <button class="ghost" style="font-size:12px" onclick="document.getElementById('blkOv').remove()">关闭</button></div>
+    <textarea id="bkedit" style="flex:1;margin:10px 12px;min-height:320px;font:12.5px/1.7 ui-monospace,Consolas,monospace;resize:none">${(d.text||'').replace(/</g,'&lt;')}</textarea>
+    <div class="sheetfoot"><span class="mini" id="bkmsg"></span><div class="spacer"></div>
+      <button class="ghost" id="bkrestore">还原 .bak</button>
+      <button class="primary" id="bksave">保存到 md</button></div></div>`);
+  ovb.querySelector('#bksave').onclick = async () => {
+    const r = await (await fetch('/api/block', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({rs: RS, id: s.id, text: ovb.querySelector('#bkedit').value})})).json();
+    toast(r.ok ? '已写入 md（原文件备份为 .bak）' : ('保存失败：' + r.msg));
+    if (r.ok) document.getElementById('bkmsg').textContent = r.path;
+  };
+  ovb.querySelector('#bkrestore').onclick = async () => {
+    const r = await (await fetch('/api/block', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({rs: RS, id: s.id, restore: true})})).json();
+    toast(r.ok ? '已还原' : ('还原失败：' + r.msg));
+    if (r.ok) ovb.remove();
+  };
+});
+</script>
+<script>
+/* ===== 收藏夹（磁盘持久化，跨浏览器） ===== */
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+async function favOpen(){
+  const d = await (await fetch('/api/fav')).json();
+  document.querySelectorAll('#favOv').forEach(n => n.remove());
+  const ov = document.createElement('div');
+  ov.id = 'favOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:60';
+  const sheet = document.createElement('div');
+  sheet.style.cssText = 'position:absolute;right:0;top:0;height:100%;width:min(640px,58vw);background:var(--panel);'
+    + 'border-left:1px solid var(--line);display:flex;flex-direction:column;'
+    + 'box-shadow:-14px 0 36px rgba(0,0,0,.38);transform:translateX(100%);transition:transform .22s';
+  sheet.innerHTML = `
+    <div class="panelhead" style="justify-content:space-between">
+      <span>收藏夹 <span class="mini" id="favCnt">0</span></span>
+      <button class="ghost" style="font-size:12px" id="favClose">关闭</button>
+    </div>
+    <div style="flex:1;overflow:auto" id="favList"></div>`;
+  ov.appendChild(sheet); document.body.appendChild(ov);
+  requestAnimationFrame(() => sheet.style.transform = 'translateX(0)');
+  const kill = () => { sheet.style.transform = 'translateX(100%)'; setTimeout(() => ov.remove(), 200); };
+  ov.onclick = e => { if (e.target === ov) kill(); };
+  sheet.querySelector('#favClose').onclick = kill;
+  const items = d.items || [];
+  sheet.querySelector('#favCnt').textContent = items.length + ' 条';
+  const list = sheet.querySelector('#favList');
+  if (!items.length){
+    list.innerHTML = '<div class="mini" style="padding:16px">还没有收藏。生成后点输出区右上角「☆ 收藏」把它存下来，'
+      + '换浏览器、重装程序都不会丢。</div>';
+  }
+  items.forEach(it => {
+    const el = document.createElement('div');
+    el.className = 'drow'; el.style.cssText = 'align-items:flex-start;padding:9px 12px;gap:8px';
+    el.innerHTML = `<div style="flex:1;min-width:0">
+        <div class="mini">${esc(it.ts)} · ${esc(it.rs)}</div>
+        <div style="font-size:12.5px;margin:3px 0;color:var(--txt)">${esc((it.text||'').slice(0,70))}</div>
+        <div class="mini" style="white-space:normal;line-height:1.6">${esc((it.out||'').slice(0,150))}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:none">
+        <button class="ghost" style="font-size:11px" data-a="load">载入</button>
+        <button class="ghost" style="font-size:11px" data-a="del">删除</button>
+      </div>`;
+    el.querySelector('[data-a=load]').onclick = () => {
+      document.getElementById('inp').value = it.text || '';
+      setOut(it.out || '');
+      const byTitle = {}; BLOCKS.forEach(b => { byTitle[b.t] = b.id; });
+      const ids = (it.blocks || []).map(t => byTitle[t]).filter(Boolean);
+      selected = ids.map(id => ({id, locked:false}));
+      renderPipe();
+      toast(ids.length ? ('已载入（含 ' + ids.length + ' 块）') : '已载入（当前规则集没有匹配的块）');
+      kill();
+    };
+    el.querySelector('[data-a=del]').onclick = async () => {
+      await fetch('/api/fav', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({del: it.id})});
+      el.remove();
+      const n = (await (await fetch('/api/fav')).json()).items.length;
+      sheet.querySelector('#favCnt').textContent = n + ' 条';
+      toast('已删除');
+    };
+    list.appendChild(el);
+  });
+}
+document.getElementById('favBtn').onclick = favOpen;
+
+async function favCur(){
+  const txt = (document.getElementById('outPos').innerText || '') + '\n' + (document.getElementById('outNeg').innerText || '');
+  if (!txt.trim() || txt.indexOf('（无）') >= 0) return toast('还没有可收藏的输出');
+  const r = await (await fetch('/api/fav', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({add: {rs: RS, text: document.getElementById('inp').value, out: txt,
+      blocks: selected.map(s => blockOf(s.id).t)}})})).json();
+  toast(r.msg || (r.ok ? '已收藏' : '收藏失败'));
+}
+document.getElementById('favCur').onclick = favCur;
+
+/* ===== 批量生成（一行一条，串行） ===== */
+let BATCH_STOP = false;
+async function runBatch(){
+  const lines = document.getElementById('inp').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!lines.length) return toast('输入为空');
+  BATCH_STOP = false;
+  document.querySelectorAll('#batchOv').forEach(n => n.remove());
+  const ov = document.createElement('div');
+  ov.id = 'batchOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:65;'
+    + 'display:flex;align-items:center;justify-content:center;padding:22px';
+  ov.innerHTML = `<div style="width:min(1020px,95vw);height:min(88vh);background:var(--panel);
+      border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;overflow:hidden">
+    <div class="panelhead" style="justify-content:space-between">
+      <span>批量生成 <span class="mini" id="bprog">0 / ${lines.length}</span></span>
+      <div style="display:flex;gap:8px">
+        <button class="ghost" id="bstop" style="font-size:12px">停止</button>
+        <button class="ghost" id="bclose" style="font-size:12px">关闭</button></div>
+    </div>
+    <div style="flex:1;overflow:auto;padding:6px 16px" id="blist2"></div>
+    <div class="sheetfoot"><span class="mini">逐条串行（27B 单 slot，同时只跑一条）· 已用同样的选块</span>
+      <div class="spacer"></div><button class="ghost" id="bcopyall">复制全部</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#bclose').onclick = () => ov.remove();
+  ov.querySelector('#bstop').onclick = () => { BATCH_STOP = true; toast('已停止'); };
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  const box = ov.querySelector('#blist2'), results = [];
+  for (let i = 0; i < lines.length; i++){
+    if (BATCH_STOP) break;
+    ov.querySelector('#bprog').textContent = i + ' / ' + lines.length;
+    const row = document.createElement('div');
+    row.style.cssText = 'border-bottom:1px solid var(--line);padding:9px 0;display:flex;gap:10px';
+    row.innerHTML = `<div style="flex:1;min-width:0">
+        <div class="mini">#${i+1} ${esc(lines[i]).slice(0,90)}</div>
+        <div class="bout" style="font-size:12.5px;line-height:1.7;white-space:pre-wrap;margin-top:4px;color:var(--dim)">生成中…</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex:none">
+        <button class="ghost" style="font-size:11px" disabled>复制</button>
+        <button class="ghost" style="font-size:11px" disabled>收藏</button></div>`;
+    box.appendChild(row);
+    const out = row.querySelector('.bout');
+    try{
+      const r = await (await fetch('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({rs: RS, text: lines[i], blocks: selected.map(s => s.id),
+          locked: selected.filter(s => s.locked).map(s => s.id),
+          expand: document.getElementById('expand').checked})})).json();
+      if (r.error){ out.textContent = '失败：' + r.error; out.style.color = 'var(--bad)'; }
+      else{
+        out.textContent = r.text; out.style.color = 'var(--txt)';
+        results.push({text: lines[i], out: r.text});
+        const btns = row.querySelectorAll('button');
+        btns[0].disabled = false; btns[1].disabled = false;
+        btns[0].onclick = () => { navigator.clipboard.writeText(r.text); toast('已复制第 ' + (i+1) + ' 条'); };
+        btns[1].onclick = async () => {
+          const rr = await (await fetch('/api/fav', {method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({add: {rs: RS, text: lines[i], out: r.text, blocks: []}})})).json();
+          toast(rr.msg || '已收藏');
+        };
+      }
+    }catch(e){ out.textContent = '请求失败：' + e; out.style.color = 'var(--bad)'; }
+    row.scrollIntoView({block:'nearest'});
+  }
+  ov.querySelector('#bprog').textContent = results.length + ' / ' + lines.length;
+  ov.querySelector('#bcopyall').onclick = () => {
+    navigator.clipboard.writeText(results.map(x => x.out).join('\n\n'));
+    toast('已复制 ' + results.length + ' 条');
+  };
+  toast('批量完成：' + results.length + ' 条');
+}
+
+/* ===== 联网词典（Danbooru 镜像：中文名 + 热度 + 相关 tag） ===== */
+async function dictRefreshTD(){
+  try{
+    const s = await (await fetch('/api/heat')).json();
+    const d = s.dict || {}, el = document.getElementById('tdStat');
+    if (el) el.textContent = d.n
+      ? `联网词典 ${d.n} 个 tag · 中文名 ${d.cn} 条 · ${d.ts || ''}`
+      : '联网词典：未抓取（只发 tag 名，不发你的描述）';
+  }catch(e){}
+}
+document.getElementById('tdBtn').onclick = async () => {
+  const b = document.getElementById('tdBtn');
+  b.disabled = true; b.textContent = '抓取中…';
+  await fetch('/api/heat', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'});
+  const tick = setInterval(async () => {
+    let s;
+    try{ s = await (await fetch('/api/heat')).json(); }catch(e){ return; }
+    const p = (s.dict && s.dict.prog) || {};
+    document.getElementById('tdStat').textContent = p.msg || '抓取中…';
+    if (p.state === 'done' || p.state === 'error'){
+      clearInterval(tick);
+      b.disabled = false; b.textContent = '联网更新';
+      dictRefreshTD();
+      if (typeof dictOpen === 'function') dictOpen();
+      toast('联网词典：' + (p.msg || ('已收录 ' + s.dict.n + ' 个 tag')));
+    }
+  }, 1500);
+};
+dictRefreshTD();
+</script>
+</body>
+</html>
