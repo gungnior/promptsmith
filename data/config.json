@@ -1,0 +1,47 @@
+{
+  "_note": "PromptSmith 全局配置。程序本身不含任何规则集，全部从 ruleset_roots 加载。相对路径基于程序目录解析。",
+  "model_profiles": [
+    {
+      "id": "local-llm",
+      "label": "本地模型",
+      "base_url": "http://127.0.0.1:8081/v1",
+      "api_key": "sk-local",
+      "model": "my-model",
+      "n_ctx": 32768,
+      "max_output_tokens": 4096,
+      "temperature": 0.7,
+      "top_p": 0.8,
+      "enable_thinking": false,
+      "timeout_sec": 300
+    }
+  ],
+  "active_model": "local-llm",
+  "ruleset_roots": [
+    "rulesets"
+  ],
+  "active_ruleset": "_example",
+  "budget": {
+    "token_ratio": 0.7,
+    "safety_tokens": 2000,
+    "default_chunks": 6,
+    "min_chunks": 2,
+    "max_chunks": 8,
+    "max_inject_chars": 15000,
+    "hard_ceiling_chars": 24000,
+    "warn_at_percent": 80
+  },
+  "select": {
+    "mode": "A",
+    "keyword_weight": 0.65,
+    "alias_weight": 0.25,
+    "vector_weight": 0.35,
+    "vector_enabled": false
+  },
+  "vector": {
+    "enabled": false,
+    "ollama_base": "http://127.0.0.1:11434",
+    "embed_model": "bge-m3-embed:latest",
+    "timeout_sec": 120,
+    "note": "可选。对规则型语料区分度有限（实测 σ≈0.05），主要适合素材型语料；开启后每次检索多 1-2 秒。"
+  }
+}
