@@ -1,0 +1,52 @@
+{
+  "id": "_example",
+  "display_name": "示例 · 通用图像提示词",
+  "target_model": "任意图像模型（SD / SDXL / Anima / Flux 等）",
+  "target_kind": "image",
+  "output_format": "fields",
+  "rules_file": "system.md",
+  "kb_dir": "kb",
+  "entry_mode": "full",
+  "resident_blocks": [],
+  "fields": [
+    { "key": "q",  "label": "质量",     "required": true },
+    { "key": "a",  "label": "风格参考", "required": true },
+    { "key": "c",  "label": "主体",     "required": true },
+    { "key": "cl", "label": "服装外观", "required": true },
+    { "key": "po", "label": "动作姿态", "required": true },
+    { "key": "bg", "label": "场景",     "required": true },
+    { "key": "x",  "label": "镜头光线", "required": true },
+    { "key": "n",  "label": "负面",     "required": true }
+  ],
+  "budget": {
+    "default_chunks": 4,
+    "min_chunks": 2,
+    "max_chunks": 6,
+    "max_inject_chars": 12000,
+    "hard_ceiling_chars": 20000,
+    "token_ratio": 0.7,
+    "safety_tokens": 2000,
+    "alias_max": 300
+  },
+  "select": {
+    "mode": "A",
+    "keyword_weight": 0.65,
+    "alias_weight": 0.25,
+    "vector_weight": 0.35
+  },
+  "generate": {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "max_output_tokens": 2048,
+    "enable_thinking": false
+  },
+  "validate": {
+    "must_start_with": "q",
+    "ban_light_words": [
+      "warm light", "cool light", "soft light", "soft lighting",
+      "cinematic lighting", "moody lighting", "dramatic lighting",
+      "beautiful lighting", "rim light", "top light"
+    ],
+    "unique_fields": []
+  }
+}
