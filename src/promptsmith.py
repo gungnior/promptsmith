@@ -53,12 +53,38 @@ def _cfg_path():
     return CFG
 
 
+def _deep_merge(base, over):
+    for k, v in (over or {}).items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _deep_merge(base[k], v)
+        else:
+            base[k] = v
+    return base
+
+
 def load_cfg():
-    with open(_cfg_path(), encoding='utf-8') as f:
-        return json.load(f)
+    """读配置：config.json 为基线，若同目录有 config.local.json 则深度覆盖。
+    config.local.json 用于放本机环境相关的东西（如模型启动路径），不进版本库。"""
+    p = _cfg_path()
+    with open(p, encoding='utf-8') as f:
+        cfg = json.load(f)
+    lp = os.path.join(os.path.dirname(p), 'config.local.json')
+    if os.path.exists(lp):
+        try:
+            _deep_merge(cfg, json.load(open(lp, encoding='utf-8')))
+            cfg['_local_overlay'] = True
+        except Exception:
+            pass
+    return cfg
 
 
 def save_cfg(cfg):
+    """写回主配置。launch 段属于本机环境，永远不写进主配置（避免把本机路径提交到仓库）。"""
+    cfg = json.loads(json.dumps(cfg, ensure_ascii=False))
+    cfg.pop('_local_overlay', None)
+    for m in cfg.get('model_profiles') or []:
+        if isinstance(m, dict):
+            m.pop('launch', None)
     p = _cfg_path()
     os.makedirs(os.path.dirname(p), exist_ok=True)
     with open(p, 'w', encoding='utf-8', newline='\n') as f:
