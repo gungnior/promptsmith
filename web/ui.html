@@ -545,6 +545,15 @@ renderPipe(); renderBlocks();
 
 /* ================= 接后端 ================= */
 let RS = null;
+function tm(r){
+  const t = r && r.timings;
+  if (!t || !t.prompt_n) return '';
+  const pf = t.prompt_ms ? (t.prompt_ms / 1000).toFixed(t.prompt_ms < 1000 ? 2 : 1) : '?';
+  const pd = t.predicted_ms ? (t.predicted_ms / 1000).toFixed(1) : '?';
+  const tag = t.cache_hit ? '缓存命中' : '冷启动';
+  return ` · 输入 ${(t.prompt_n/1000).toFixed(1)}K/${pf}s(${tag}) · 输出 ${t.predicted_n||'?'}/${pd}s`;
+}
+
 function setOut(text){
   const pos = [], neg = [];
   text.trim().split('\n').forEach(l => {
@@ -639,7 +648,7 @@ document.querySelector('.footbar button.primary').onclick = async () => {
       const ok = r.issues && r.issues.length === 0;
       document.getElementById('valTip').textContent = ok ? '校验通过' : `校验 ${r.issues.length} 处问题`;
       document.getElementById('valTip').style.color = ok ? 'var(--ok)' : 'var(--bad)';
-      document.getElementById('st').textContent = `状态：${r.sec}s · 用 ${(r.used||[]).length} 块 · ${r.chars} 字${r.retried?' · 重跑过':''}`;
+      document.getElementById('st').textContent = `状态：${r.sec}s · 用 ${(r.used||[]).length} 块 · ${r.chars} 字${r.retried?' · 重跑过':''}${tm(r)}`;
       toast(ok ? `完成 ${r.sec}s` : `完成，${r.issues.join(' / ')}`);
     }
   }catch(e){ toast('请求失败：' + e); document.getElementById('st').textContent = '状态：失败'; }
@@ -803,7 +812,7 @@ async function rerun(bump){
       locked: selected.filter(s => s.locked).map(s => s.id), retry:false, bump: bump ? 0.15 : 0})})).json();
   if (r.error) return toast(r.error);
   setOut(r.text);
-  document.getElementById('st').textContent = `状态：${r.sec}s · 用 ${(r.used||[]).length} 块 · ${r.chars} 字`;
+  document.getElementById('st').textContent = `状态：${r.sec}s · 用 ${(r.used||[]).length} 块 · ${r.chars} 字${tm(r)}`;
   toast(bump ? '已换一版' : '已重跑');
 }
 /* 覆盖底栏按钮 */
@@ -1117,6 +1126,9 @@ async function runBatch(){
   ov.querySelector('#bstop').onclick = () => { BATCH_STOP = true; toast('已停止'); };
   ov.onclick = e => { if (e.target === ov) ov.remove(); };
   const box = ov.querySelector('#blist2'), results = [];
+  // 27B 的 prefix cache 只认「完全相同的前缀」：整批复用同一组块，
+  // 第 2 条起 prefill 能从 5s 降到 0.15s（实测 37x）。
+  let batchBlocks = selected.length ? selected.map(s => s.id) : null;
   for (let i = 0; i < lines.length; i++){
     if (BATCH_STOP) break;
     ov.querySelector('#bprog').textContent = i + ' / ' + lines.length;
@@ -1133,12 +1145,13 @@ async function runBatch(){
     const out = row.querySelector('.bout');
     try{
       const r = await (await fetch('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({rs: RS, text: lines[i], blocks: selected.map(s => s.id),
+        body: JSON.stringify({rs: RS, text: lines[i], blocks: (batchBlocks || []),
           locked: selected.filter(s => s.locked).map(s => s.id),
           expand: document.getElementById('expand').checked})})).json();
       if (r.error){ out.textContent = '失败：' + r.error; out.style.color = 'var(--bad)'; }
       else{
         out.textContent = r.text; out.style.color = 'var(--txt)';
+        if (!batchBlocks && r.used && r.used.length) batchBlocks = r.used.map(u => u.id);
         results.push({text: lines[i], out: r.text});
         const btns = row.querySelectorAll('button');
         btns[0].disabled = false; btns[1].disabled = false;
