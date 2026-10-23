@@ -7,6 +7,7 @@ from urllib.parse import urlparse, parse_qs, unquote
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import promptsmith as PS
+import modelctl as MC
 
 ROOT = PS.ROOT
 WEB = os.path.join(ROOT, 'web')
@@ -67,7 +68,7 @@ class H(BaseHTTPRequestHandler):
                               'target_model': p.get('target_model', ''), 'kind': p.get('target_kind', ''),
                               } for p in rs],
                 'active': cur['id'] if cur else None,
-                'model': {k: v for k, v in PS.model_of(cfg).items() if k != 'api_key'},
+                'model': {k: v for k, v in PS.model_of(cfg).items() if k not in ('api_key', 'launch')},
                 'blocks': [{'id': b['id'], 't': b['title'], 'c': b['chars'],
                             'kw': b.get('keywords', [])[:6]} for b in (cur['blocks'] if cur else [])],
                 'budget': PS.budget(cur) if cur else {},
@@ -94,6 +95,12 @@ class H(BaseHTTPRequestHandler):
                                     'vector': cfg.get('vector', {}),
                                     'port': port,
                                     'ruleset_roots': cfg.get('ruleset_roots', [])})
+
+        if path == '/api/model/status':
+            cfg = PS.load_cfg()
+            mid = (qs.get('mid') or [None])[0] or cfg.get('active_model')
+            m = PS.model_of(cfg, mid)
+            return self._send(200, MC.status(m))
 
         if path == '/api/fav':
             return self._send(200, {'items': PS.fav_list()})
@@ -151,6 +158,14 @@ class H(BaseHTTPRequestHandler):
             p = get_rs(data.get('rs'))
             if not p:
                 return self._send(400, {'error': '没有可用的规则集'})
+            # 兜底：模型没起且配了自动启动，先拉起再生成
+            _m = PS.model_of(PS.load_cfg(), data.get('mid'))
+            _L = _m.get('launch') or {}
+            if _L.get('auto_start_on_generate') and not MC.health_ok(_m.get('base_url') or '', _L.get('ready_path')):
+                ok, msg, _st = MC.start(_m, wait=True)
+                print(f'[model] 生成前自动启动：{msg}', flush=True)
+                if not ok:
+                    return self._send(200, {'ok': False, 'error': f'模型启动失败：{msg}'})
             text = (data.get('text') or '').strip()
             if not text:
                 return self._send(400, {'error': '输入为空'})
@@ -300,6 +315,28 @@ class H(BaseHTTPRequestHandler):
                 refresh()
             return self._send(200, {'ok': ok, 'msg': msg, 'rulesets': [x['id'] for x in _STATE['rulesets']]})
 
+        if u.path == '/api/model/start':
+            m = PS.model_of(PS.load_cfg(), data.get('mid'))
+            st = MC.status(m)
+            if st['ready']:
+                return self._send(200, {'ok': True, 'msg': '已在运行', 'status': st})
+            if st['running']:
+                return self._send(200, {'ok': True, 'msg': '正在加载中', 'status': st})
+            threading.Thread(target=MC.start, args=(m,), kwargs={'wait': True}, daemon=True).start()
+            print(f"[model] 启动 {m.get('id')} …", flush=True)
+            return self._send(200, {'ok': True, 'msg': '正在启动', 'status': MC.status(m)})
+
+        if u.path == '/api/model/stop':
+            m = PS.model_of(PS.load_cfg(), data.get('mid'))
+            ok, msg, st = MC.stop(m)
+            print(f'[model] 停止 {m.get("id")}: {msg}', flush=True)
+            return self._send(200, {'ok': ok, 'msg': msg, 'status': st})
+
+        if u.path == '/api/model/stopall':
+            res = MC.stop_all(PS.load_cfg().get('model_profiles') or [])
+            return self._send(200, {'ok': True, 'results': [{'id': i, 'ok': o, 'msg': s} for i, o, s in res],
+                                    'gpu_used_mb': MC.gpu_used_mb()})
+
         if u.path == '/api/fav':
             if data.get('del'):
                 return self._send(200, {'ok': PS.fav_del(data['del']), 'items': PS.fav_list()})
@@ -373,6 +410,17 @@ def serve(port=8765, open_browser=True):
         raise SystemExit('8765-8776 全部被占用')
     url = f'http://127.0.0.1:{p}/'
     print(f'PromptSmith 已启动：{url}')
+    cfg0 = PS.load_cfg()
+    for _m in cfg0.get('model_profiles') or []:
+        _L = _m.get('launch') or {}
+        if _L.get('auto_start'):
+            _st = MC.status(_m)
+            if _st['running']:
+                print(f'  · 模型 {_m.get("id")} 已在运行' + ('（就绪）' if _st['ready'] else '（加载中）'))
+            else:
+                print(f'  · 自动启动模型 {_m.get("id")} …（首次加载可能要 1-2 分钟）')
+                threading.Thread(target=MC.start, args=(_m,), kwargs={'wait': True},
+                                 daemon=True).start()
     rs = refresh()
     for x in rs:
         print(f'  · {x["id"]:<16} {len(x["blocks"]):>4} 块  正文 {x["entry_chars"]} 字')
