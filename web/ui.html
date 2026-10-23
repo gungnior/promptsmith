@@ -154,6 +154,7 @@ previewbody{display:block}
   <select id="ruleset"><option>菜鸡 · Anima（anima-smith）</option>
     <option>ANIMA3 模板（anima3-prompt）</option><option>H3 · MiniMax 视频（h3-minimax）</option></select>
   <select id="model"><option>本地模型 · my-model</option><option>+ 添加模型…</option></select>
+  <button id="mchip" class="mchip" title="点击启动 / 停止本地模型服务"><span class="mdot"></span><span id="mtext">检测中</span></button>
   <span class="mini"><span class="dot"></span>127.0.0.1:8765</span>
   <div class="spacer"></div>
   <span class="mini" id="budgetTop">预算 0%</span>
@@ -299,7 +300,9 @@ let BLOCKS = [
   {id:'b14',g:'画风',       t:'15. 画师风格',          c:735,  s:.55, kw:['画师','画师串']},
   {id:'b15',g:'面部',       t:'16. 面部细节',          c:498,  s:.62, kw:['面部','表情','瞳色']},
 ];
-let MAXTOK = 19800, BODY_CHARS = 12615;
+let MAXTOK = null, BODY_CHARS = 0;      // 上下文上限、入口字数，均由后端 bootstrap 填充
+let TOKEN_RATIO = 0.7;                  // 中文→token 估算比，读 profile.budget.token_ratio
+let AVAIL_TOK = null, CTX = null;       // 可用预算（n_ctx − 输出 − 余量）、原始 n_ctx
 let picked = [];   // 选择器里勾选的 id
 let selected = []; // 流水线 [{id,locked}]
 const blockOf = id => BLOCKS.find(b => b.id === id);
@@ -409,13 +412,15 @@ function renderPipe(){
     pipe.appendChild(el);
   });
   const chars = selected.reduce((a,s) => a + blockOf(s.id).c, 0);
-  const tok = Math.round((chars + BODY_CHARS) * 0.7);
-  const pct = Math.min(100, Math.round(tok / MAXTOK * 100));
+  const tok = Math.round((chars + BODY_CHARS) * TOKEN_RATIO);
+  const base = AVAIL_TOK || MAXTOK || 32768;          // 分母：真正可用的预算，不是整个 n_ctx
+  const pct = Math.min(100, Math.round(tok / base * 100));
+  const kfmt = n => n >= 1000 ? (n/1000).toFixed(1) + 'K' : String(n);
   document.getElementById('cum').textContent = `${selected.length} 块 · ${chars} 字`;
   document.getElementById('pct').textContent = `${pct}%`;
   document.getElementById('cnt').textContent = selected.length;
   document.getElementById('budgetTop').textContent = `预算 ${pct}%`;
-  document.getElementById('pvSum').textContent = `规则正文 12.6K 字 + ${selected.length} 块`;
+  document.getElementById('pvSum').textContent = `入口正文 ${kfmt(BODY_CHARS)} 字 + ${selected.length} 块 · ≈${kfmt(tok)} / ${kfmt(base)} token`;
   const f = document.getElementById('barFill');
   f.style.width = pct + '%';
   f.style.background = pct > 90 ? 'var(--bad)' : 'linear-gradient(90deg,var(--acc2),var(--acc))';
@@ -423,7 +428,8 @@ function renderPipe(){
   document.getElementById('pvBox').textContent =
     `[system] 规则正文 ${BODY_CHARS} 字\n` +
     selected.map((s,i) => `[块${i+1}] ${blockOf(s.id).t}（${blockOf(s.id).c} 字）`).join('\n') +
-    `\n[user] （你的输入）\n合计 ${chars + BODY_CHARS} 字 ≈ ${tok} token（占 65,536 的 ${pct}%）`;
+    `\n[user] （你的输入）\n合计 ${chars + BODY_CHARS} 字 ≈ ${tok} token` +
+    `（可用预算 ${base} token / 上下文 ${CTX || '?'}）· 占 ${pct}%`;
 }
 
 /* ============ 选择器开关 ============ */
@@ -573,6 +579,10 @@ async function boot(){
       toast('入口切换为' + (em.value === 'slim' ? '精简' : '全量'));
     };
     if (d.model && d.model.n_ctx) MAXTOK = d.model.n_ctx;
+    CTX = MAXTOK;
+    const bud = d.budget || {};
+    TOKEN_RATIO = bud.token_ratio || 0.7;
+    AVAIL_TOK = bud.avail_tokens || null;
     document.getElementById('kbCount').textContent = `共 ${(d.blocks||[]).length} 块`;
     document.getElementById('model').innerHTML = `<option>${d.model.model} · ${d.model.n_ctx}</option>`;
     if (d.blocks && d.blocks.length){
@@ -595,6 +605,7 @@ document.querySelector('.footbar button.primary').onclick = async () => {
   const text = document.getElementById('inp').value.trim();
   if (!text) return toast('先写描述');
   if (document.getElementById('batch').checked) return runBatch();
+  if (!await ensureModel()){ document.getElementById('st').textContent = '状态：模型未就绪'; return; }
   btn.disabled = true; btn.textContent = '生成中…';
   document.getElementById('st').textContent = '状态：生成中…';
   try{
@@ -786,6 +797,7 @@ async function rerun(bump){
   const text = document.getElementById('inp').value.trim();
   if (!text) return toast('先写描述');
   if (document.getElementById('batch').checked) return runBatch();
+  if (!await ensureModel()) return toast('模型未就绪');
   const r = await (await fetch('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({rs: RS, text, blocks: selected.map(s => s.id),
       locked: selected.filter(s => s.locked).map(s => s.id), retry:false, bump: bump ? 0.15 : 0})})).json();
@@ -1177,6 +1189,95 @@ document.getElementById('tdBtn').onclick = async () => {
   }, 1500);
 };
 dictRefreshTD();
+</script>
+<style>
+.mchip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;
+  border:1px solid var(--line);background:var(--panel2);color:var(--txt);font-size:12px;cursor:pointer;
+  transition:.15s;white-space:nowrap}
+.mchip:hover{border-color:var(--acc)}
+.mdot{width:7px;height:7px;border-radius:99px;background:var(--dim);flex:none}
+.mchip.on .mdot{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.mchip.busy .mdot{background:var(--warn);animation:mdpulse 1s infinite}
+.mchip.off .mdot{background:var(--bad)}
+@keyframes mdpulse{50%{opacity:.3}}
+</style>
+<script>
+/* ===== 本地模型服务管理：启动 / 停止 / 就绪轮询 ===== */
+let MODEL_ST = null, MODEL_TIMER = null;
+const msleep = ms => new Promise(r => setTimeout(r, ms));
+
+function paintModel(st){
+  MODEL_ST = st;
+  const c = document.getElementById('mchip'), t = document.getElementById('mtext');
+  if (!c || !t) return;
+  c.classList.remove('on', 'off', 'busy');
+  if (!st){ c.classList.add('busy'); t.textContent = '检测中'; return; }
+  const g = st.gpu_used_mb ? ` · 显存 ${(st.gpu_used_mb / 1024).toFixed(1)}G` : '';
+  if (st.ready){
+    c.classList.add('on'); t.textContent = '模型在线' + g;
+    c.title = `已就绪（PID ${st.pid || '-'}）· 显存为整卡占用 · 点击停止以释放`;
+  } else if (st.running){
+    c.classList.add('busy'); t.textContent = '加载中…' + g;
+    c.title = '模型正在加载，请稍候';
+  } else {
+    c.classList.add('off');
+    t.textContent = st.launch_enabled ? '模型离线' + g : '模型离线（未配启动命令）';
+    c.title = st.launch_enabled ? '点击启动本地模型' : '在 data/config.local.json 里配置 launch 段';
+  }
+}
+async function modelStatus(){
+  try { return await (await fetch('/api/model/status')).json(); } catch(e){ return null; }
+}
+async function refreshModel(){ paintModel(await modelStatus()); }
+
+function watchModel(){
+  clearInterval(MODEL_TIMER);
+  let n = 0;
+  MODEL_TIMER = setInterval(async () => {
+    const st = await modelStatus(); paintModel(st); n++;
+    if (!st || st.ready || n > 150){ clearInterval(MODEL_TIMER); MODEL_TIMER = null; }
+  }, 2000);
+}
+
+async function toggleModel(){
+  if (!MODEL_ST) { await refreshModel(); if (!MODEL_ST) return; }
+  if (MODEL_ST.running){
+    const g = ((MODEL_ST.gpu_used_mb || 0) / 1024).toFixed(1);
+    if (!confirm(`停止本地模型？\n\n会释放约 ${g} GB 显存，适合去跑图。\n之后要跑词再点一次启动。`)) return;
+    const r = await (await fetch('/api/model/stop', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:'{}'})).json();
+    toast(r.msg || '已停止');
+    paintModel(r.status);
+  } else {
+    if (!MODEL_ST.launch_enabled){ toast('未配置启动命令：请在 data/config.local.json 里填 launch'); return; }
+    toast('正在启动模型…', 6000);
+    await fetch('/api/model/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    watchModel();
+  }
+}
+
+/* 生成前确保模型就绪；返回 false 表示起不来 */
+async function ensureModel(){
+  let st = await modelStatus();
+  if (!st || st.ready) return true;
+  if (!st.launch_enabled) return true;          // 没配启动命令，交给外部服务
+  if (st.running){ toast('模型正在加载，请稍候…', 6000); }
+  else {
+    toast('本地模型未启动，正在拉起（首次约 1-2 分钟）…', 8000);
+    await fetch('/api/model/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+  }
+  for (let i = 0; i < 150; i++){
+    await msleep(2000);
+    st = await modelStatus(); paintModel(st);
+    if (st && st.ready){ toast('模型已就绪'); return true; }
+    if (st && !st.running && i > 2){ toast('模型启动失败，看 logs 目录'); return false; }
+  }
+  toast('模型启动超时'); return false;
+}
+
+document.getElementById('mchip').onclick = toggleModel;
+refreshModel();
+setInterval(() => { if (!MODEL_TIMER) modelStatus().then(paintModel); }, 15000);
 </script>
 </body>
 </html>
