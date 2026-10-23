@@ -548,10 +548,10 @@ let RS = null;
 function setOut(text){
   const pos = [], neg = [];
   text.trim().split('\n').forEach(l => {
-    const m = l.match(/^\**([a-z]{1,3})\**\s*[:：]/);
+    const m = l.match(/^\**([a-z][a-z0-9_]{0,39})\**\s*[:：]/);
     (m && (m[1] === 'n' || m[1] === 'nh') ? neg : pos).push(l);
   });
-  const fmt = arr => arr.map(l => l.replace(/^\**([a-z]{1,3})\**\s*[:：]\s*/, (x, k) => `<span class="f">${k}:</span> `))
+  const fmt = arr => arr.map(l => l.replace(/^\**([a-z][a-z0-9_]{0,39})\**\s*[:：]\s*/, (x, k) => `<span class="f">${k}:</span> `))
     .join('\n').replace(/(dramatic lighting|soft light(?:ing)?|rim light|warm light|cool light|moody lighting|cinematic lighting)/gi, '<span class="bad">$1</span>');
   document.getElementById('outPos').innerHTML = fmt(pos) || '<span class="mini">（无）</span>';
   document.getElementById('outNeg').innerHTML = neg.length ? fmt(neg) : '<span class="mini">（无负面）</span>';
