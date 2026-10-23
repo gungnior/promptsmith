@@ -1138,7 +1138,11 @@ def generate(prof, user_text, picked, model=None, retry=True, entry_mode=None, t
                 out, issues = out2, issues2
     return {'ok': not issues, 'text': out, 'issues': issues, 'retried': retried,
             'sec': round(time.time() - t0, 1),
+            'timings': dict(LAST_TIMINGS),
             'chars': len(re.sub(r'\s', '', sysmsg)) + len(user_text)}
+
+
+LAST_TIMINGS = {}
 
 
 def _chat(m, system, user, temp, top_p, max_tok, no_think):
@@ -1166,6 +1170,15 @@ def _chat(m, system, user, temp, top_p, max_tok, no_think):
     try:
         with urllib.request.urlopen(req, timeout=m.get('timeout_sec', 300)) as r:
             d = json.loads(r.read().decode())
+        t = d.get('timings') or {}
+        LAST_TIMINGS.clear()
+        pn = t.get('prompt_n')
+        pms = t.get('prompt_ms')
+        LAST_TIMINGS.update({'prompt_n': pn, 'prompt_ms': pms,
+                             'predicted_n': t.get('predicted_n'), 'predicted_ms': t.get('predicted_ms'),
+                             # llama.cpp 的 prompt_n 只统计「本次真正需要重算的 token」，
+                             # 命中前缀缓存时会给到个位数（实测 4 tok / 158 ms）
+                             'cache_hit': bool(pn is not None and (pn < 500 or (pms is not None and pms < 500)))})
         return d['choices'][0]['message']['content'], None
     except urllib.error.URLError as e:
         return None, f'连不上模型服务（{m["base_url"]}）：{e}'
