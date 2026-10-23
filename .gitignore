@@ -32,3 +32,6 @@ desktop.ini
 
 # 日志
 *.log
+
+# 本机环境配置（含模型启动路径，不要提交）
+data/config.local.json
