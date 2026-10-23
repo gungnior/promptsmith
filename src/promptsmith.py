@@ -64,8 +64,12 @@ def _deep_merge(base, over):
 
 def load_cfg():
     """读配置：config.json 为基线，若同目录有 config.local.json 则深度覆盖。
-    config.local.json 用于放本机环境相关的东西（如模型启动路径），不进版本库。"""
+    config.local.json 用于放本机环境相关的东西（如模型启动路径），不进版本库。
+    配置文件不存在时返回一份最小默认值——校验工具、单规则集分发等场景不该因为缺配置就崩。"""
     p = _cfg_path()
+    if not os.path.exists(p):
+        return {'ruleset_roots': [], 'model_profiles': [], 'active_model': None,
+                'budget': {}, 'vector': {}, '_note': '未找到 config.json，使用内置默认值'}
     with open(p, encoding='utf-8') as f:
         cfg = json.load(f)
     lp = os.path.join(os.path.dirname(p), 'config.local.json')
@@ -91,12 +95,24 @@ def save_cfg(cfg):
         json.dump(cfg, f, ensure_ascii=False, indent=2)
 
 
+DEFAULT_MODEL = {
+    'id': 'default', 'label': '未配置模型',
+    'base_url': 'http://127.0.0.1:8081/v1', 'api_key': 'sk-local',
+    'model': 'local-model', 'n_ctx': 32768, 'max_output_tokens': 4096,
+    'temperature': 0.7, 'top_p': 0.8, 'enable_thinking': False, 'timeout_sec': 300,
+}
+
+
 def model_of(cfg, mid=None):
+    """取模型配置。没有配置时给一份默认值——预算计算、检索这些不该因为没配模型就失败。"""
+    profs = cfg.get('model_profiles') or []
+    if not profs:
+        return dict(DEFAULT_MODEL)
     mid = mid or cfg.get('active_model')
-    for m in cfg['model_profiles']:
-        if m['id'] == mid:
+    for m in profs:
+        if m.get('id') == mid:
             return m
-    return cfg['model_profiles'][0]
+    return profs[0]
 
 
 # ---------------- 规则集 ----------------
