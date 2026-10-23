@@ -76,7 +76,8 @@ def main():
         if not fkeys:
             rec(FAIL, 'fields', 'output_format=fields 但 fields 为空 → 校验会退化成只查一个字段')
         else:
-            bad = [k for k in fkeys if not re.fullmatch(r'[a-z]{1,3}', k)]
+            # 字段名可以是短 tag（q/a/c），也可以是长蛇形名（subject_definitions）
+            bad = [k for k in fkeys if not re.fullmatch(r'[a-z][a-z0-9_]{0,39}', k)]
             if bad:
                 rec(WARN, 'fields', f'字段名不是 1-3 个小写字母：{bad}（模型输出行首需与之一致）')
             else:
@@ -177,11 +178,13 @@ def main():
                     notitle.append(f)
             tot = sum(s for s, _ in sizes)
             med = sorted(s for s, _ in sizes)[len(sizes) // 2]
-            big = [f'{f}({s})' for s, f in sizes if s > 1500]
+            # 规则集可以声明「原子块」上限：某些块（完整样例）拆开就废，允许更大
+            bmax = int((prof.get('budget') or {}).get('block_max_chars') or 1500)
+            big = [f'{f}({s})' for s, f in sizes if s > bmax]
             small = [f'{f}({s})' for s, f in sizes if s < 300]
-            rec(OK, 'kb', f'{len(mds)} 块，共 {tot} 字，中位 {med} 字')
+            rec(OK, 'kb', f'{len(mds)} 块，共 {tot} 字，中位 {med} 字（单块上限 {bmax}）')
             if big:
-                rec(WARN, 'kb-过大', f'{len(big)} 块超过 1500 字：{", ".join(big[:4])}')
+                rec(WARN, 'kb-过大', f'{len(big)} 块超过 {bmax} 字：{", ".join(big[:4])}')
             if small:
                 rec(WARN, 'kb-碎片', f'{len(small)} 块小于 300 字：{", ".join(small[:4])}')
             if badname:
