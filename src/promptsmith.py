@@ -1158,7 +1158,8 @@ def _chat(m, system, user, temp, top_p, max_tok, no_think):
 
 
 # ---------------- 校验 ----------------
-FIELD_RE = re.compile(r'^\s*\**([a-z]{1,3})\**\s*[:：]\s*(.*)$', re.M)
+# 字段名：短 tag（q/a/c）到长蛇形名（subject_definitions）都要认
+FIELD_RE = re.compile(r'^\s*\**([a-z][a-z0-9_]{0,39})\**\s*[:：]\s*(.*)$', re.M)
 
 
 def parse_fields(text):
@@ -1191,7 +1192,7 @@ def validate(prof, text):
         miss = [f for f in fields if f not in got]
         if miss:
             issues.append('缺字段：' + ','.join(miss))
-        ms = v.get('must_start_with')
+        ms = (v.get('must_start_with') or '').strip().rstrip('：:').strip()
         if ms and order and order[0] != ms:
             issues.append(f'第一行应为 {ms}:')
         low = text.lower()
