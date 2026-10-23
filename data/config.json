@@ -1,5 +1,6 @@
 {
   "_note": "PromptSmith 全局配置。程序本身不含任何规则集，全部从 ruleset_roots 加载。相对路径基于程序目录解析。",
+  "_local_note": "本机相关的启动命令请写在同目录的 config.local.json 里（不纳入版本库），格式见 docs/ruleset-spec.md；主配置里的 launch 段只作示例。",
   "model_profiles": [
     {
       "id": "local-llm",
@@ -12,7 +13,18 @@
       "temperature": 0.7,
       "top_p": 0.8,
       "enable_thinking": false,
-      "timeout_sec": 300
+      "timeout_sec": 300,
+      "launch": {
+        "enabled": false,
+        "command": "",
+        "args": [],
+        "cwd": "",
+        "port": 8081,
+        "ready_path": "/health",
+        "startup_timeout_sec": 180,
+        "auto_start": false,
+        "auto_start_on_generate": true
+      }
     }
   ],
   "active_model": "local-llm",
